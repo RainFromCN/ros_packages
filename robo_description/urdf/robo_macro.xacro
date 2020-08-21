@@ -1,0 +1,367 @@
+<?xml version="1.0"?>
+<robot name="robo" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    
+    <!-- Define property -->
+    <xacro:property name="pi" value="3.1415926" />
+    <xacro:property name="base_length" value="0.2" />
+    <xacro:property name="base_radius" value="0.23" />
+    <xacro:property name="wheel_radius" value="0.06" />
+    <xacro:property name="wheel_length" value="0.025" />
+    <xacro:property name="caster_radius" value="0.03" />
+    <xacro:property name="caster_offset" value="0.18" />
+    <xacro:property name="camera_height" value="0.05" />
+    <xacro:property name="camera_offset_x" value="0.18" />
+    <xacro:property name="rplidar_length" value="0.15" />
+    <xacro:property name="rplidar_radius" value="0.04" />
+
+    <!-- Define mass -->
+    <xacro:property name="base_mass" value="2" />
+    <xacro:property name="wheel_mass" value="1" />
+    <xacro:property name="caster_mass" value="0.5" />
+    <xacro:property name="camera_mass" value="0.5" />
+    <xacro:property name="rplidar_mass" value="0.5" />
+
+    <!-- Define color -->
+    <material name="wheel_clr">
+        <color rgba="0 0 0 1" />
+    </material>
+
+    <material name="base_clr">
+        <color rgba="0.8 0.5 0.5 1" />
+    </material>
+
+    <!-- Macro for inertia matrix -->
+    <xacro:macro name="sphere_inertia_matrix" params="m r">
+        <inertial>
+            <mass value="${m}" />
+            <inertia ixx="${2*m*r*r/5}" ixy="0" ixz="0"
+                     iyy="${2*m*r*r/5}" iyz="0"
+                     izz="${2*m*r*r/5}" />
+        </inertial>
+    </xacro:macro>
+
+     <xacro:macro name="cylinder_inertia_matrix" params="m r h">
+        <inertial>
+            <mass value="${m}" />
+            <inertia ixx="${m*(3*r*r+h*h)/12}" ixy="0" ixz="0"
+                     iyy="${m*(3*r*r+h*h)/12}" iyz="0"
+                     izz="${m*r*r/2}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="box_inertia_matrix" params="m w d h">
+        <inertial>
+            <mass value="${m}" />
+            <inertia ixx="${1/12*m*(h*h+d*d)}" ixy="0" ixz="0"
+                     iyy="${1/12*m*(w*w+d*d)}" iyz="0"
+                     izz="${1/12*m*(w*w+h*h)}" />
+        </inertial>
+    </xacro:macro>
+
+    <!-- Macro for robot base & wheel & caster -->
+    <xacro:macro name="base">
+        <link name = "base_link">
+            <visual>
+                <origin xyz="0 0 ${wheel_radius + base_length/2}" rpy="0 0 0" />
+                <geometry>
+                    <cylinder length="${base_length}" radius="${base_radius}" />
+                </geometry>
+                <material name="base_clr" />
+            </visual>
+            <collision>
+                <origin xyz="0 0 ${wheel_radius + base_length/2}" rpy="0 0 0" />
+                <geometry>
+                    <cylinder length="${base_length}" radius="${base_radius}" />
+                </geometry>
+            </collision>
+            <cylinder_inertia_matrix m="${base_mass}" r="${base_radius}" h="${base_length}" />
+        </link>
+
+        <gazebo reference="base_link">
+            <material>Gazebo/Red</material>
+            <turnGravityOff>false</turnGravityOff>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:macro name="wheel" params="prefix ref">
+        <link name = "${prefix}_wheel">
+            <visual>
+                <origin xyz="0 0 0" rpy="${pi/2} 0 0" />
+                <geometry>
+                    <cylinder length="${wheel_length}" radius="${wheel_radius}" />
+                </geometry>
+                <material name="wheel_clr" />
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="${pi/2} 0 0" />
+                <geometry>
+                    <cylinder length="${wheel_length}" radius="${wheel_radius}" />
+                </geometry>
+            </collision>
+            <cylinder_inertia_matrix m="${wheel_mass}" r="${wheel_radius}" h="${wheel_length}" />
+        </link>
+
+        <joint name="${prefix}_wheel_joint" type="continuous">
+            <origin xyz="0 ${ref*base_radius} ${wheel_radius}" rpy="0 0 0" />
+            <parent link="base_link" />
+            <child link="${prefix}_wheel" />
+            <axis xyz="0 1 0" />
+        </joint>
+
+        <gazebo reference="${prefix}_wheel">
+            <material>Gazebo/Gray</material>
+            <turnGravityOff>false</turnGravityOff>
+        </gazebo>
+
+        <transmission name="${prefix}_wheel_joint_trans">
+            <type>transmission_interface/SimpleTransmission</type>
+            <joint name="${prefix}_wheel_joint">
+                <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
+            </joint>
+            <actuator name="${prefix}_wheel_joint_motor">
+                <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
+                <mechanicalReduction>1</mechanicalReduction>
+            </actuator>
+        </transmission>
+    </xacro:macro>
+
+    <xacro:macro name="caster" params="prefix ref">
+        <link name="${prefix}_caster">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <sphere radius="${caster_radius}" />
+                </geometry>
+                <material name="wheel_clr" />
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <sphere radius="${caster_radius}" />
+                </geometry>
+            </collision>
+            <sphere_inertia_matrix m="${caster_mass}" r="${caster_radius}" />
+        </link>
+
+        <joint name="${prefix}_caster_joint" type="continuous">
+            <origin xyz="${ref*caster_offset} 0 ${caster_radius}" rpy="0 0 0" />
+            <parent link="base_link" />
+            <child link="${prefix}_caster" />
+            <axis xyz="0 1 0" />
+        </joint>
+
+        <gazebo reference="${prefix}_caster">
+            <material>Gazebo/Black</material>
+            <turnGravityOff>false</turnGravityOff>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:macro name="head_camera">
+        <link name="camera_link">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <box size="0.05 0.2 ${camera_height}" />
+                </geometry>
+                <material name="wheel_clr" />
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <box size="0.05 0.2 ${camera_height}" />
+                </geometry>
+            </collision>
+            <box_inertia_matrix m="${camera_mass}" w="0.2" d="0.05" h="${camera_height}" />
+        </link>
+
+        <joint name="camera_joint" type="fixed">
+            <origin xyz="${camera_offset_x} 0 ${wheel_radius + base_length + camera_height/2}" rpy="0 0 0" />
+            <parent link="base_link" />
+            <child link="camera_link" />
+        </joint>
+        
+        <gazebo reference="camera_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="camera_link">
+            <sensor type="camera" name="camera1">
+                <update_rate>30.0</update_rate>
+                <camera name="camera1">
+                    <horizontal_fov>1.3962634</horizontal_fov>
+                    <image>
+                        <width>1280</width>
+                        <height>720</height>
+                        <format>R8G8B8</format>
+                    </image>
+                    <clip>
+                        <near>0.02</near>
+                        <far>300</far>
+                    </clip>
+                    <noise>
+                        <type>gaussian</type>
+                        <!-- Noise is sampled independently per pixel on each frame.
+                            That pixel's noise value is added to each of its color
+                            channels, which at that point lie in the range [0,1]. -->
+                        <mean>0.0</mean>
+                        <stddev>0.007</stddev>
+                    </noise>
+                </camera>
+                <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+                    <alwaysOn>true</alwaysOn>
+                    <updateRate>0.0</updateRate>
+                    <cameraName>/camera1</cameraName>
+                    <imageTopicName>image_raw</imageTopicName>
+                    <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+                    <frameName>camera_link</frameName>
+                    <hackBaseline>0.07</hackBaseline>
+                    <distortionK1>0.0</distortionK1>
+                    <distortionK2>0.0</distortionK2>
+                    <distortionK3>0.0</distortionK3>
+                    <distortionT1>0.0</distortionT1>
+                    <distortionT2>0.0</distortionT2>
+                </plugin>
+            </sensor>
+        </gazebo>
+
+    </xacro:macro>
+
+    <xacro:macro name="head_kinect">
+
+        <link name="kinect_link">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <box size="0.05 0.2 ${camera_height}" />
+                </geometry>
+                <material name="wheel_clr" />
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <box size="0.05 0.2 ${camera_height}" />
+                </geometry>
+            </collision>
+            <box_inertia_matrix m="${camera_mass}" w="0.2" d="0.05" h="${camera_height}" />
+        </link>
+
+        <joint name="kinect_joint" type="fixed">
+            <origin xyz="${camera_offset_x} 0 ${wheel_radius + base_length + camera_height/2}" rpy="0 0 0" />
+            <parent link="base_link" />
+            <child link="kinect_link" />
+        </joint>
+        
+        <gazebo reference="kinect_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="kinect_link">
+            <sensor name="kinect" type="depth">
+                <update_rate>20</update_rate>
+                <camera>
+                <horizontal_fov>1.047198</horizontal_fov>
+                <image>
+                    <width>640</width>
+                    <height>480</height>
+                    <format>R8G8B8</format>
+                </image>
+                <clip>
+                    <near>0.05</near>
+                    <far>3</far>
+                </clip>
+                </camera>
+                <plugin name="kinect_controller" filename="libgazebo_ros_openni_kinect.so">
+                    <baseline>0.2</baseline>
+                    <alwaysOn>true</alwaysOn>
+                    <updateRate>1.0</updateRate>
+                    <cameraName>kinect</cameraName>
+                    <imageTopicName>/kinect/color/image_raw</imageTopicName>
+                    <cameraInfoTopicName>/kinect/color/camera_info</cameraInfoTopicName>
+                    <depthImageTopicName>/kinect/depth/image_raw</depthImageTopicName>
+                    <depthImageInfoTopicName>/kinect/depth/camera_info</depthImageInfoTopicName>
+                    <pointCloudTopicName>/kinect/depth/points</pointCloudTopicName>
+                    <frameName>kinect_link</frameName>
+                    <pointCloudCutoff>0.5</pointCloudCutoff>
+                    <pointCloudCutoffMax>3.0</pointCloudCutoffMax>
+                    <distortionK1>0.00000001</distortionK1>
+                    <distortionK2>0.00000001</distortionK2>
+                    <distortionK3>0.00000001</distortionK3>
+                    <distortionT1>0.00000001</distortionT1>
+                    <distortionT2>0.00000001</distortionT2>
+                    <CxPrime>0</CxPrime>
+                    <Cx>0</Cx>
+                    <Cy>0</Cy>
+                    <focalLength>0</focalLength>
+                    <hackBaseline>0</hackBaseline>
+                </plugin>
+            </sensor>
+        </gazebo>
+
+    </xacro:macro>
+
+    <xacro:macro name="rplidar">
+        <link name="rplidar_link">
+            <visual>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <cylinder length="${rplidar_length}" radius="${rplidar_radius}" />
+                </geometry>
+                <material name="wheel_clr" /> 
+            </visual>
+            <collision>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <geometry>
+                    <cylinder length="${rplidar_length}" radius="${rplidar_radius}" />
+                </geometry>
+            </collision>
+            <cylinder_inertia_matrix m="${rplidar_mass}" r="${rplidar_radius}" h="${rplidar_length}" />
+        </link>
+
+        <joint name="rplidar_joint" type="fixed">
+            <origin xyz="0 0 ${wheel_radius + base_length + rplidar_length/2}" rpy="0 0 0" />
+            <parent link="base_link" />
+            <child link="rplidar_link" />
+        </joint>
+
+        <gazebo reference="rplidar_link">
+            <material>Gazebo/Black</material>
+        </gazebo>
+
+        <gazebo reference="rplidar_link">
+            <sensor type="ray" name="rplidar">
+                <pose>0 0 0 0 0 0</pose>
+                <visualize>false</visualize>
+                <update_rate>40</update_rate>
+                <ray>
+                    <scan>
+                    <horizontal>
+                        <samples>720</samples>
+                        <resolution>1</resolution>
+                        <min_angle>-3.1416</min_angle>
+                        <max_angle>3.1416</max_angle>
+                    </horizontal>
+                    </scan>
+                    <range>
+                        <min>0.10</min>
+                        <max>30.0</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                    <noise>
+                    <type>gaussian</type>
+                    <!-- Noise parameters based on published spec for Hokuyo laser
+                        achieving "+-30mm" accuracy at range < 10m.  A mean of 0.0m and
+                        stddev of 0.01m will put 99.7% of samples within 0.03m of the true
+                        reading. -->
+                    <mean>0.0</mean>
+                    <stddev>0.01</stddev>
+                    </noise>
+                </ray>
+                <plugin name="gazebo_ros_head_hokuyo_controller" filename="libgazebo_ros_laser.so">
+                    <topicName>/scan</topicName>
+                    <frameName>rplidar_link</frameName>
+                </plugin>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+</robot>                    

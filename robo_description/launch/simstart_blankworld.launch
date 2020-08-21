@@ -1,0 +1,36 @@
+<launch>
+    
+    <!-- 设置launch文件参数 -->
+    <!--<arg name="world_name" value="$(find yourpkg)/worlds/filename.world" />-->
+    <arg name="paused" default="false" />
+    <arg name="use_sim_time" default="true" />
+    <arg name="gui" default="true" />
+    <arg name="headless" default="false" />
+    <arg name="debug" default="false" />
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="gui" value="$(arg gui)" />
+        <arg name="paused" value="$(arg paused)" />
+        <arg name="use_sim_time" value="$(arg use_sim_time)" />
+        <arg name="headless" value="$(arg headless)" />
+    </include>
+
+    <!-- 加载机器人信息 -->
+    <param name="robot_description" command="$(find xacro)/xacro.py '$(find robo_description)/urdf/robo.xacro'" />
+
+    <!-- 运行joint_state_publisher，发布机器人的关节状态 -->
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+
+    <!-- 运行robot_state_publisher，发布TF -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen">
+        <param name="publish_frequency" type="double" value="50" />
+    </node>
+
+    <!-- 在gazebo中加载机器人模型 -->
+    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+          args="-urdf -model robo -param robot_description" />
+
+    <node name="robo_teleop_key" pkg="robo_description" type="robo_teleop_key" />
+
+</launch>
